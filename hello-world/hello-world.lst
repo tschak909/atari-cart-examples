@@ -1,0 +1,90 @@
+mads 2.1.1
+Source: hello-world.s
+     1 				;;; 
+     2 				;;; @brief Hello World as Diagnostic Cart
+     3 				;;; @author Thomas Cherryhomes
+     4 				;;; @email thom dot cherryhomes at gmail dot com
+     5 				;;; @license gpl v. 3, see LICENSE for details.
+     6 				;;; 
+     7 				;;; *******************************************************************************************
+     8 				;;; ***                                                                                     ***
+     9 				;;; *** The simplest, barest, get-out-of-my-way-let-me-handle-everything cartridge possible ***
+    10 				;;; *** Using the "Diagnostic Cartridge" flag to tell the Atari to not start the ROM OS,    ***
+    11 				;;; *** and instead, to jump to the cartridge as soon as possible.                          ***
+    12 				;;; ***                                                                                     ***
+    13 				;;; *** So this means, we take care of setting up, at the very least, POKEY, and to point   ***
+    14 				;;; *** ANTIC to the right place, using the actual hardware registers, instead of the       ***
+    15 				;;; *** OS shadow registers (e.g. DLIST instead of SDLST)                                   ***
+    16 				;;; ***                                                                                     ***
+    17 				;;; *******************************************************************************************
+    18 				;;;
+    19 				;;; @note: build with the MAD-Assembler (https://mads.atari8.info/)
+    20 				;;;
+    21
+    22 					opt f+			; Fill all bytes with 00 in between the two orgs
+    23 					opt h-			; No executable binary header, we'll provide a cart trailer.
+    24
+    25 					;; Equates to give nice names to hardware register addresses.
+    26 					
+    27 = D01A			COLBK	equ $D01A		; GTIA Background color
+    28 = D20F			SKCTL	equ $D20F		; POKEY Control register
+    29 = D400			DMACTL	equ $D400		; ANTIC DMA control register
+    30 = D402			DLISTL	equ $D402		; ANTIC Display List pointer (LO)
+    31 = D403			DLISTH	equ $D403		; ANTIC Display List Pointer (HI)
+    32
+    33 					;; Start of ROM
+    34 					
+    35 					org $A000		; Start of the 8K cartridge area ($A000-$BFFF)
+    36
+    37 					;; Program execution begins here (we specify this in the trailer below)
+    38
+    39 					;; We have to quickly set up POKEY, at the very least so the system will work.
+    40 					
+    41 A000 A9 00		START:	lda #$00		; Clear Pokey SKCTL
+    42 A002 8D 0F D2			sta SKCTL
+    43 A005 A9 03			lda #$03		; Then Set to $03
+    44 A007 8D 0F D2			sta SKCTL
+    45
+    46 A00A A9 22			lda #$22		; Turn on normal playfield DMA
+    47 A00C 8D 00 D4			sta DMACTL
+    48 					
+    49 A00F A9 CA			LDA #$CA		; Set background color to GREEN
+    50 A011 8D 1A D0			STA COLBK
+    51
+    52 A014 A9 21			LDA #<DLIST		; point display list to DLIST
+    53 A016 8D 02 D4			STA DLISTL
+    54 A019 A9 A0			LDA #>DLIST
+    55 A01B 8D 03 D4			STA DLISTH
+    56 					
+    57 A01E 4C 1E A0		LOOP:	JMP LOOP
+    58
+    59 					;; The ANTIC Display list
+    60 					;; LMS means Load Memory Store. That is, get the data to display on this line, from the following address
+    61 					
+    62 A021			DLIST:	
+    63 A021 70				.BYTE $70		; 8 blank scan lines
+    64 A022 70				.BYTE $70		; 8 blank scan lines
+    65 A023 70				.BYTE $70		; 8 blank scan lines
+    66 A024 70				.BYTE $70		; 8 blank scan lines
+    67 A025 70				.BYTE $70		; 8 blank scan lines
+    68 A026 70				.BYTE $70		; 8 blank scan lines
+    69 A027 70				.BYTE $70		; 8 blank scan lines
+    70 A028 70				.BYTE $70		; 8 blank scan lines
+    71 A029 70				.BYTE $70		; 8 blank scan lines
+    72 A02A 70				.BYTE $70		; 8 blank scan lines
+    73 A02B 70				.BYTE $70		; 8 blank scan lines
+    74 A02C 70				.BYTE $70		; 8 blank scan lines
+    75 A02D 70				.BYTE $70		; 8 blank scan lines
+    76 A02E 47 34 A0			.BYTE $47,<MSG,>MSG	; Mode 6 ($06) (20 columns, 5 colors), + LMS ($40), get display from address of MSG
+    77 A031 41 21 A0			.BYTE $41,<DLIST,>DLIST ; Jump after VBlank to DLIST (loop back)
+    78
+    79 A034 00 00 39 2F 35 32 + MSG:	.SB "  YOUR ATARI WORKS  "
+    80
+    81 					;; The Cartridge trailer, at the very end of the ROM.
+    82 					
+    83 A048				org $BFFA
+    84 BFFA 00 A0			.word START		; Start address
+    85 BFFC 00				.byte $00		; should set 0 here so Atari knows there is a cartridge
+    86 BFFD 80				.byte $80		; Diagnostic Cartridge, do not initialize anything
+    87 BFFE 00 A0			.word START		; init address
+    88 					
